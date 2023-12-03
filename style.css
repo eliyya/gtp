@@ -1,0 +1,15 @@
+h1 {
+    background-color: #333;
+    color: #fff;
+    padding: 20px;
+    animation: scrollAnimation 1s ease-in-out infinite alternate;
+}
+
+@keyframes scrollAnimation {
+    0% {
+        transform: translateY(-10px);
+    }
+    100% {
+        transform: translateY(10px);
+    }
+}
