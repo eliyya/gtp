@@ -78,3 +78,10 @@ export class CustomComponent extends HTMLElement {
 export function html(a:TemplateStringsArray,...b:any[]){
     return a.reduce((acc,cur,i)=>acc+b[i-1]+cur)
 }
+export function css(a:TemplateStringsArray,...b:any[]){
+    return `
+        <style>
+            ${a.reduce((acc,cur,i)=>acc+b[i-1]+cur)}
+        </style>
+    `
+}

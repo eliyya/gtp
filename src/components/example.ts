@@ -1,4 +1,4 @@
-import { CustomComponent, register } from '../CustomComponent'
+import { CustomComponent, register } from '../lib/CustomComponent'
 
 @register('example-component')
 export class Canvas extends CustomComponent {
