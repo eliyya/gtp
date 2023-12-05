@@ -2,6 +2,7 @@ import './style.css'
 import typescriptLogo from './typescript.svg'
 import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.ts'
+import './components/canvas/canvas.ts'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div>
@@ -18,7 +19,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <p class="read-the-docs">
       Click on the Vite and TypeScript logos to learn more
     </p>
+    <canvas-app/>
   </div>
 `
-
+// const canvas = setupCanvas(document.querySelector<HTMLCanvasElement>('canvas')!)
 setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
