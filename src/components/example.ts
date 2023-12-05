@@ -1,7 +1,6 @@
-import { CustomComponent, register } from '../../CustomComponent'
-import './canvas.css'
+import { CustomComponent, register } from '../CustomComponent'
 
-@register('canvas-app')
+@register('example-component')
 export class Canvas extends CustomComponent {
     tit = this.state('Canvas App')
 
