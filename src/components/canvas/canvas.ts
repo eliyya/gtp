@@ -2,14 +2,14 @@ import { CustomComponent, register } from '../../CustomComponent'
 import './canvas.css'
 
 @register('canvas-app')
-class Canvas extends CustomComponent {
-    _title = this.state('Canvas App')
+export class Canvas extends CustomComponent {
+    tit = this.state('Canvas App')
 
     constructor() {
         super()
 
         this.html`<div>
-            <h1>${this._title}</h1>
+            <h1>${this.tit}</h1>
             <canvas></canvas>
         <div>`
 
@@ -26,11 +26,11 @@ class Canvas extends CustomComponent {
             const ctx = canvas.getContext('2d')!
             ctx.fillStyle = 'green'
             ctx.fillRect(10, 10, 150, 100)
-        }, [this._title])
+        })
 
         this.effect(() => {
             setTimeout(() => {
-                this._title.value = 'Canvas App (updated)'
+                this.tit.value = 'Canvas App (updated)'
             }, 3_000);
         }, [])
     }
