@@ -25,9 +25,6 @@ export class CustomComponent extends HTMLElement {
             set: (target, key: string, value) => {
                 if (key !== 'value') return undefined
                 target['value'] = value
-                // this.render()
-                this.html(...this.#html)
-                this.css(...this.#css)
                 this.render()
                 emiter.dispatchEvent(new CustomEvent('change'))
                 this.#emiter.dispatchEvent(new CustomEvent('change'))
@@ -64,5 +61,7 @@ export class CustomComponent extends HTMLElement {
     }
 
     render() {
+        this.html(...this.#html)
+        this.css(...this.#css)
     }
 }

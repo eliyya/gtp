@@ -8,19 +8,6 @@ export class Canvas extends CustomComponent {
     constructor() {
         super()
 
-        this.html`<div>
-            <h1>${this.tit}</h1>
-            <canvas></canvas>
-        <div>`
-
-        this.css`
-            canvas {
-                width: 100%;
-                height: 100%;
-                background-color: #1e1e1e;
-            }
-        `
-
         this.effect(() => {
             const canvas = this.$.querySelector('canvas')!
             const ctx = canvas.getContext('2d')!
@@ -33,5 +20,20 @@ export class Canvas extends CustomComponent {
                 this.tit.value = 'Canvas App (updated)'
             }, 3_000);
         }, [])
+    }
+
+    render() {
+        this.html`<div>
+            <h1>${this.tit}</h1>
+            <canvas></canvas>
+        <div>`
+
+        this.css`
+            canvas {
+                width: 100%;
+                height: 100%;
+                background-color: #1e1e1e;
+            }
+        `
     }
 }
