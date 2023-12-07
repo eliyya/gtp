@@ -6,13 +6,13 @@ import { html } from './lib/CustomComponent.ts'
 import './components/canvas-screen.ts'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = html`
-  <div>
-    <header></header>
-    <main>
-      <aside></aside>
-      <canvas-screen></canvas-screen>
-    </main>
-  </div>
+  <header id='headbar'>
+    AppName
+  </header>
+  <main>
+    <aside></aside>
+    <canvas-screen></canvas-screen>
+  </main>
 `
 // const canvas = setupCanvas(document.querySelector<HTMLCanvasElement>('canvas')!)
 // setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
