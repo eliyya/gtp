@@ -37,7 +37,7 @@ body {
   text-align: center;
   display: flex;
   flex-direction: column;
-
+  height: 100vh;
 }
 
 #headbar {
@@ -47,6 +47,26 @@ body {
   align-items: center;
   width: 100%;
   background-color: #646cffaa;
+}
+
+main {
+  background-color: #213547;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: row;
+}
+
+canvas-screen {
+  flex-grow: 1;
+  background-color: #1a1a1a;
+}
+
+aside {
+  width: 15em;
+  background-color: #213547;
+  color: #888;
+  padding: 1em;
+  overflow-y: auto;
 }
 
 .logo {
