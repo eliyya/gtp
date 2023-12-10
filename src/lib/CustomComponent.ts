@@ -19,6 +19,7 @@ export class CustomComponent extends HTMLElement {
     #css:[TemplateStringsArray, any[]] = [null, null]
     #emiter = new EventTarget()
     #rendered = false
+    #style = document.createElement('style')
     
     state = <T>(init:T):state<T> => {
         const emiter = new EventTarget()
@@ -53,9 +54,8 @@ export class CustomComponent extends HTMLElement {
     }
     
     css(a:TemplateStringsArray,...b:any[]){
-        const style = document.createElement('style')
-        style.textContent = a.reduce((acc,cur,i)=>acc+b[i-1]+cur)
-        this.$.appendChild(style)
+        this.#style.textContent = a.reduce((acc,cur,i)=>acc+b[i-1]+cur)
+        this.$.appendChild(this.#style)
         this.#css = [a,b]
     }
     
