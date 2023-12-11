@@ -18,8 +18,25 @@ export class CustomComponent extends HTMLElement {
     // @ts-expect-error
     #css:[TemplateStringsArray, any[]] = [null, null]
     #emiter = new EventTarget()
+    #clicks: string[] = []
     #rendered = false
     #style = document.createElement('style')
+    #clickups: [string, string][] = []
+
+    constructor() {
+        super()
+        this.#emiter.addEventListener('change', () => {
+            this.#clickups.forEach(([id, ev]) => {
+                const el = this.$.querySelector(`#${id}`)
+                if (el) {
+                    // @ts-expect-error
+                    el.removeEventListener(ev, this[ev])
+                    // @ts-expect-error
+                    el.addEventListener(ev, this[ev])
+                }
+            })
+        })
+    }
     
     state = <T>(init:T):state<T> => {
         const emiter = new EventTarget()
@@ -75,6 +92,50 @@ export class CustomComponent extends HTMLElement {
         this.html(...this.#html)
         this.css(...this.#css)
     }
+
+    registerClick(id:string, fn: (e: any) => void) {
+        fn.toString = () => id
+        document.addEventListener(id, fn)
+        return fn
+    }
+
+    compile(a:string, element: HTMLElement){
+        /*
+        recibe un string con el html y lo compila
+        buscando @click, @change, @input, @submit, @keydown, @keyup, @keypress
+        y los remplaza por los eventos correspondientes
+        wie ejecuta dentro del custom component
+        */
+        const eventRegex = new RegExp(`<[^>]+(id="[^"]+")?(@click="[^"]+")(id="[^"]+")?([^>]+)?>`, 'gm')
+        const events = a.match(eventRegex) ?? []
+        const evn = []
+        for (let event of events) {
+            const originalEvent = event
+            event = event.replace(/\ +/g, ' ').replace(/\n/g, '')
+            const groups = [...event.matchAll(/<([\s]+)?([\w]+(-[\w]+)?)\s+(?<id>id="[^"]+")?([\ ]+)?(?<ev>@click="[^"]+")([\ ]+)?(?<it>id="[^"]+")?([\ ]+)?>/g)][0]?.groups??{}
+            let id = (groups.id ?? groups.it ?? '').replace(/id="([^"]+)"/, '$1')
+            const ev = (groups.ev ?? '').replace(/@click="([^"]+)"/, '$1')
+            if (!id) {
+                id = Math.random().toString(36).substring(2, 9)
+                event = event.replace(/<(?<el>([\s]+)?([\w]+(-[\w]+)?)\s+)/, `<$<el> id="${id}" `)
+            }
+            event = event.replace(/@click="([^"]+)"/, `onclick="pev('${id+ev}')"`)
+            a = a.replace(originalEvent, event)
+            evn.push([id, ev])
+        }
+        
+        a = a + html`
+        <script>
+            const pev = (ev) => {
+                const event = new CustomEvent('')
+                document.dispatchEvent(event)
+            }
+        </script>
+        `
+        element.innerHTML = a
+        console.log(a);
+
+    }
 }
 
 export function html(a:TemplateStringsArray,...b:any[]){
@@ -87,3 +148,4 @@ export function css(a:TemplateStringsArray,...b:any[]){
         </style>
     `
 }
+

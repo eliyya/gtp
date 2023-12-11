@@ -1,9 +1,10 @@
-import { CustomComponent, register } from "../lib/CustomComponent";
+import { CustomComponent, register, html } from "../lib/CustomComponent";
 
 @register('canvas-screen')
 export default class CanvasScreen extends CustomComponent {
     canvas = document.createElement('canvas')
     ctx = this.canvas.getContext('2d')!
+    userInterface = document.createElement('main')
     mouse = {
         x: 0,
         y: 0
@@ -30,8 +31,26 @@ export default class CanvasScreen extends CustomComponent {
         }
     }
 
+    ontest = this.registerClick('test', () => alert('test'))
     constructor() {
         super()
+
+        this.compile(html`
+            <header>header</header>
+            <footer>
+                <button id="ts" @click="${this.ontest}">return</button>
+                <button 
+                id="ts2" 
+                @click="${this.ontest}"
+                >return2</button>
+                <button 
+                @click="${this.ontest}"
+                id="ts3" 
+                >return3</button>
+                <button @click="${this.ontest}">return4</button>
+            </footer>
+        `, this.userInterface)
+
         this.effect(()=> {
             window.addEventListener('resize', () => {
                 this.canvas.height = window.innerHeight
@@ -39,7 +58,7 @@ export default class CanvasScreen extends CustomComponent {
                 this.renderCanvas()
             })
 
-            this.canvas.addEventListener('mousemove', (e) => {
+            window.addEventListener('mousemove', (e) => {
                 this.mouse.x = e.clientX
                 this.mouse.y = e.clientY
                 
@@ -51,7 +70,7 @@ export default class CanvasScreen extends CustomComponent {
                 this.renderCanvas()
             })
 
-            this.canvas.addEventListener('mousedown', (e) => {
+            window.addEventListener('mousedown', (e) => {
                 console.log('start drag', e.clientX, e.clientY);
                 
                 if (this.tool === 'move') {
@@ -61,7 +80,7 @@ export default class CanvasScreen extends CustomComponent {
                     this.#startDrag.y = e.clientY
                 }
             })
-            this.canvas.addEventListener('mouseup', (e) => {
+            window.addEventListener('mouseup', (e) => {
                 console.log('end drag', e.clientX, e.clientY);
                 console.log('dif', e.clientX - this.#startDrag.x, e.clientY - this.#startDrag.y);
                 
@@ -78,8 +97,6 @@ export default class CanvasScreen extends CustomComponent {
             this.renderCanvas()
         }, [])
     }
-
-    
 
     renderCanvas(): void {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
@@ -118,6 +135,7 @@ export default class CanvasScreen extends CustomComponent {
         this.canvas.height = window.innerHeight
         this.#center.x = this.canvas.width / 2
         this.#center.y = this.canvas.height / 2
+        this.$.appendChild(this.userInterface)
         
         // this.canvas.height = this.$.fullscreenElement!.clientHeight!
 
@@ -132,6 +150,24 @@ export default class CanvasScreen extends CustomComponent {
                 margin: 0;
                 padding: 0;
                 background-color: #1e1e1e;
+            }
+
+            main {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: transparent;
+                padding: 1rem;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+
+                > footer {
+
+                }
             }
         `
     }
