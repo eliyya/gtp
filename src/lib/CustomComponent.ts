@@ -66,6 +66,7 @@ export class CustomComponent extends HTMLElement {
 
     connectedCallback() {
         this.render()
+        // check if rendered
         this.#rendered = true
         this.#emiter.dispatchEvent(new CustomEvent('rendered'))
     }
@@ -75,6 +76,7 @@ export class CustomComponent extends HTMLElement {
         this.css(...this.#css)
     }
 }
+
 export function html(a:TemplateStringsArray,...b:any[]){
     return a.reduce((acc,cur,i)=>acc+b[i-1]+cur)
 }
