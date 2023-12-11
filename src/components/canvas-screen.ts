@@ -21,6 +21,7 @@ export default class CanvasScreen extends CustomComponent {
         y: 0
     }
     mouseMove: 'normal' | 'drag' = 'normal'
+    tool: 'move' = 'move'
 
     get center() {
         return {
@@ -38,7 +39,7 @@ export default class CanvasScreen extends CustomComponent {
                 this.renderCanvas()
             })
 
-            window.addEventListener('mousemove', (e) => {
+            this.canvas.addEventListener('mousemove', (e) => {
                 this.mouse.x = e.clientX
                 this.mouse.y = e.clientY
                 
@@ -50,22 +51,28 @@ export default class CanvasScreen extends CustomComponent {
                 this.renderCanvas()
             })
 
-            window.addEventListener('mousedown', (e) => {
+            this.canvas.addEventListener('mousedown', (e) => {
                 console.log('start drag', e.clientX, e.clientY);
                 
-                this.mouseMove = 'drag'
-                this.#startDrag.x = e.clientX
-                this.#startDrag.y = e.clientY
+                if (this.tool === 'move') {
+                    this.canvas.style.cursor = 'grabbing'
+                    this.mouseMove = 'drag'
+                    this.#startDrag.x = e.clientX
+                    this.#startDrag.y = e.clientY
+                }
             })
-            window.addEventListener('mouseup', (e) => {
+            this.canvas.addEventListener('mouseup', (e) => {
                 console.log('end drag', e.clientX, e.clientY);
                 console.log('dif', e.clientX - this.#startDrag.x, e.clientY - this.#startDrag.y);
                 
-                this.mouseMove = 'normal'
-                this.#center.x = this.#center.x + (e.clientX - this.#startDrag.x)
-                this.#center.y = this.#center.y + (e.clientY - this.#startDrag.y)
-                this.#dragPoint.x = 0
-                this.#dragPoint.y = 0
+                if (this.tool === 'move') {
+                    this.mouseMove = 'normal'
+                    this.#center.x = this.#center.x + (e.clientX - this.#startDrag.x)
+                    this.#center.y = this.#center.y + (e.clientY - this.#startDrag.y)
+                    this.#dragPoint.x = 0
+                    this.#dragPoint.y = 0
+                    this.canvas.style.cursor = 'grab'
+                }
                 this.renderCanvas()
             })
             this.renderCanvas()
@@ -100,12 +107,13 @@ export default class CanvasScreen extends CustomComponent {
         // drag point
         // this.ctx.beginPath()
         // this.ctx.strokeStyle = '#fff'
-        // this.ctx.moveTo(this.startDrag.x, this.startDrag.y)
-        // this.ctx.strokeRect(this.startDrag.x, this.startDrag.y, this.dragPoint.x, this.dragPoint.y)
+        // this.ctx.strokeRect(this.#startDrag.x, this.#startDrag.y, this.#dragPoint.x, this.#dragPoint.y)
     }
 
     render(): void {
         this.$.appendChild(this.canvas)
+        this.canvas.style.cursor = this.tool === 'move' ? 'grab' : 'default'
+
         this.canvas.width = window.innerWidth
         this.canvas.height = window.innerHeight
         this.#center.x = this.canvas.width / 2
