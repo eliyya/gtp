@@ -1,174 +1,591 @@
-import { CustomComponent, register, html } from "../lib/CustomComponent";
+/*
+ ██████╗ ██████╗ ███╗   ██╗███████╗████████╗ █████╗ ███╗   ██╗████████╗███████╗
+██╔════╝██╔═══██╗████╗  ██║██╔════╝╚══██╔══╝██╔══██╗████╗  ██║╚══██╔══╝██╔════╝
+██║     ██║   ██║██╔██╗ ██║███████╗   ██║   ███████║██╔██╗ ██║   ██║   ███████╗
+██║     ██║   ██║██║╚██╗██║╚════██║   ██║   ██╔══██║██║╚██╗██║   ██║   ╚════██║
+╚██████╗╚██████╔╝██║ ╚████║███████║   ██║   ██║  ██║██║ ╚████║   ██║   ███████║
+ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
+ */
+const TOOLS = {
+  Move: "move",
+  Select: "select",
+} as const;
 
-@register('canvas-screen')
-export default class CanvasScreen extends CustomComponent {
-    canvas = document.createElement('canvas')
-    ctx = this.canvas.getContext('2d')!
-    userInterface = document.createElement('main')
-    mouse = {
-        x: 0,
-        y: 0
+type Tool = (typeof TOOLS)[keyof typeof TOOLS];
+
+const CURSOR_STYLES = {
+  Auto: "auto",
+  Default: "default",
+  None: "none",
+  ContexMenu: "context-menu",
+  Help: "help",
+  Pointer: "pointer",
+  Progress: "progress",
+  Wait: "wait",
+  Cell: "cell",
+  Crosshair: "crosshair",
+  Text: "text",
+  VerticalText: "vertical-text",
+  Alias: "alias",
+  Copy: "copy",
+  Move: "move",
+  NoDrop: "no-drop",
+  NotAllowed: "not-allowed",
+  Grab: "grab",
+  Grabbing: "grabbing",
+  AllScroll: "all-scroll",
+  ColResize: "col-resize",
+  RowResize: "row-resize",
+  NResize: "n-resize",
+  EResize: "e-resize",
+  SResize: "s-resize",
+  WResize: "w-resize",
+  NeResize: "ne-resize",
+  NwResize: "nw-resize",
+  SeResize: "se-resize",
+  SwResize: "sw-resize",
+  EwResize: "ew-resize",
+  NsResize: "ns-resize",
+  NeswResize: "nesw-resize",
+  NwseResize: "nwse-resize",
+  ZoomIn: "zoom-in",
+  zoomOut: "zoom-out",
+} as const;
+
+type CursorStyle = (typeof CURSOR_STYLES)[keyof typeof CURSOR_STYLES];
+
+/*
+██╗   ██╗ █████╗ ██████╗ ██╗ █████╗ ██████╗ ██╗     ███████╗███████╗
+██║   ██║██╔══██╗██╔══██╗██║██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
+██║   ██║███████║██████╔╝██║███████║██████╔╝██║     █████╗  ███████╗
+╚██╗ ██╔╝██╔══██║██╔══██╗██║██╔══██║██╔══██╗██║     ██╔══╝  ╚════██║
+ ╚████╔╝ ██║  ██║██║  ██║██║██║  ██║██████╔╝███████╗███████╗███████║
+  ╚═══╝  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
+*/
+let selectedTool: Tool = (() => {
+  const tool = localStorage.getItem("selectedTool");
+  if (Object.values(TOOLS).includes(tool as Tool)) return tool as Tool;
+  return TOOLS.Move;
+})();
+
+const dragPoint = {
+  x: 0,
+  y: 0,
+};
+
+const mouse = {
+  x: 0,
+  y: 0,
+};
+const startDrag = {
+  x: 0,
+  y: 0,
+};
+const startSelect = {
+  x: 0,
+  y: 0,
+};
+const selectPoint = {
+  x: 0,
+  y: 0,
+};
+const startRelocate = {
+  x: 0,
+  y: 0,
+};
+const relocatePoint = {
+  x: 0,
+  y: 0,
+};
+let isDragging = false;
+let isSelecting = false;
+let isRelocating = false;
+
+const canvas = new (class Canvas {
+  element = document.createElement("canvas");
+  get ctx() {
+    return this.element.getContext("2d")!;
+  }
+})();
+
+class Enode {
+  static fromLocale() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem("tree") ?? "");
+      return new Enode({
+        x: parsed.x,
+        y: parsed.y,
+        w: parsed.w,
+        h: parsed.h,
+        title: parsed.title,
+      });
+    } catch (error) {
+      return new Enode();
     }
-    #center = {
-        x: 0,
-        y: 0
+  }
+
+  #x = -50;
+  #y = -50;
+  #w = 100;
+  #h = 100;
+  selected = false;
+  #title = "Metag";
+  #textSize = 20;
+  #radius = 8;
+  #isChangingTitle = false;
+  #timeout = setTimeout(() => {});
+
+  get x() {
+    return this.#x;
+  }
+
+  get y() {
+    return this.#y;
+  }
+
+  get w() {
+    return this.#w;
+  }
+
+  get h() {
+    return this.#h;
+  }
+
+  get title() {
+    return this.#title;
+  }
+
+  set x(x: number) {
+    this.#x = x;
+    this.save();
+  }
+
+  save() {
+    clearTimeout(this.#timeout);
+    this.#timeout = setTimeout(() => {
+      localStorage.setItem("tree", JSON.stringify(this));
+    }, 100);
+  }
+
+  set y(y: number) {
+    this.#y = y;
+  }
+
+  set w(w: number) {
+    this.#w = w;
+    this.save();
+  }
+
+  set h(h: number) {
+    this.#h = h;
+    this.save();
+  }
+
+  set title(title: string) {
+    this.#title = title;
+    this.save();
+  }
+
+  constructor({
+    x,
+    y,
+    w,
+    h,
+    title,
+  }: {
+    x?: number;
+    y?: number;
+    w?: number;
+    h?: number;
+    title?: string;
+  } = {}) {
+    if (x) this.x = x;
+    if (y) this.y = y;
+    if (w) this.w = w;
+    if (h) this.h = h;
+    if (title) this.title = title;
+  }
+
+  render() {
+    canvas.ctx.fillStyle = "#1a1a1a";
+    canvas.ctx.roundRect(
+      this.x + getCenter().x,
+      this.y + getCenter().y,
+      this.w,
+      this.h,
+      this.#radius,
+    );
+    canvas.ctx.fill();
+    canvas.ctx.closePath();
+
+    if (!this.#isChangingTitle) {
+      canvas.ctx.fillStyle = "#fff";
+      canvas.ctx.font = `${this.#textSize}px Arial`;
+      const textWidth = canvas.ctx.measureText(this.title).width;
+      canvas.ctx.fillText(
+        this.title,
+        this.x + getCenter().x + this.w / 2 - textWidth / 2,
+        this.y + getCenter().y + this.#textSize,
+      );
     }
-    #startDrag = {
-        x: 0,
-        y: 0
+    if (this.selected) {
+      canvas.ctx.strokeStyle = "#fff";
+      canvas.ctx.strokeRect(
+        this.x + getCenter().x - 5,
+        this.y + getCenter().y - 5,
+        this.w + this.#radius,
+        this.h + this.#radius,
+      );
     }
-    #dragPoint = {
-        x: 0,
-        y: 0
+  }
+
+  isTextColision(x: number, y: number) {
+    canvas.ctx.font = `${this.#textSize}px Arial`;
+    const textWidth = canvas.ctx.measureText(this.title).width;
+    return isColision(
+      {
+        x,
+        y,
+        w: 1,
+        h: 1,
+      },
+      {
+        x: this.x + getCenter().x + this.w / 2 - textWidth / 2,
+        y: this.y + getCenter().y + this.#radius,
+        w: textWidth,
+        h: this.#textSize,
+      },
+    );
+  }
+
+  tryChangeTitle() {
+    this.#isChangingTitle = true;
+    let removed = false;
+    canvas.ctx.font = `${this.#textSize}px Arial`;
+    const textWidth = canvas.ctx.measureText(this.title).width;
+    const input = document.createElement("input");
+    input.value = this.title;
+    input.style.position = "absolute";
+    input.style.left = `${
+      this.x + getCenter().x + this.w / 2 - textWidth / 2
+    }px`;
+    input.style.top = `${this.y + getCenter().y + this.#radius}px`;
+    input.style.width = `${textWidth}px`;
+    input.style.height = `${this.#textSize}px`;
+    input.style.zIndex = "999999999";
+    input.style.border = "none";
+    input.style.padding = "0";
+    input.style.margin = "0";
+    input.style.background = "transparent";
+    input.style.color = "#fff";
+    input.style.fontSize = `${this.#textSize}px`;
+    input.style.fontFamily = "Arial";
+    input.style.textAlign = "center";
+    input.style.outline = "none";
+    input.style.boxShadow = "none";
+    input.style.cursor = "text";
+    input.addEventListener("blur", () => {
+      this.title = input.value;
+      this.#isChangingTitle = false;
+      if (!removed) input.remove();
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        this.title = input.value;
+        this.#isChangingTitle = false;
+        removed = true;
+        input.remove();
+      }
+    });
+    input.addEventListener("input", () => {
+      const inputTextWidth = input.scrollWidth;
+      if (inputTextWidth > textWidth) {
+        input.style.width = `${inputTextWidth}px`;
+      }
+      if (inputTextWidth > this.w - this.#radius * 2) {
+        this.w = inputTextWidth + this.#radius * 2;
+      }
+      input.style.left = `${
+        this.x + getCenter().x + this.w / 2 - inputTextWidth / 2
+      }px`;
+    });
+    document.body.appendChild(input);
+    input.focus();
+  }
+
+  isColision(x: number, y: number, w: number, h: number) {
+    return isColision({ x, y, w, h }, {
+      x: this.x + getCenter().x,
+      y: this.y + getCenter().y,
+      w: this.w,
+      h: this.h,
+    });
+  }
+
+  toJSON() {
+    return {
+      x: this.x,
+      y: this.y,
+      w: this.w,
+      h: this.h,
+      title: this.title,
+    };
+  }
+}
+
+const tree = Enode.fromLocale();
+
+const center = new (class Center {
+  #x = 0;
+  #y = 0;
+
+  constructor() {
+    try {
+      const pc = JSON.parse(localStorage.getItem("center") ?? "");
+      if (!isNaN(pc.x)) this.x = pc.x;
+      if (!isNaN(pc.y)) this.y = pc.y;
+      localStorage.setItem("center", JSON.stringify(this));
+    } catch {}
+  }
+
+  get x() {
+    return this.#x;
+  }
+
+  get y() {
+    return this.#y;
+  }
+
+  set x(x: number) {
+    this.#x = x;
+    localStorage.setItem("center", JSON.stringify(this));
+  }
+
+  set y(y: number) {
+    this.#y = y;
+    localStorage.setItem("center", JSON.stringify(this));
+  }
+
+  toJSON() {
+    return {
+      x: this.x,
+      y: this.y,
+    };
+  }
+})();
+
+window.addEventListener("mousemove", (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+
+  if (isDragging) {
+    dragPoint.x = e.clientX - startDrag.x;
+    dragPoint.y = e.clientY - startDrag.y;
+  } else if (isSelecting) {
+    selectPoint.x = e.clientX - startSelect.x;
+    selectPoint.y = e.clientY - startSelect.y;
+  } else if (isRelocating) {
+    relocatePoint.x = e.clientX - startRelocate.x;
+    relocatePoint.y = e.clientY - startRelocate.y;
+    tree.x = tree.x + relocatePoint.x;
+    tree.y = tree.y + relocatePoint.y;
+    startRelocate.x = e.clientX;
+    startRelocate.y = e.clientY;
+  }
+});
+
+/*
+███████╗███████╗████████╗██╗   ██╗██████╗ ███████╗
+██╔════╝██╔════╝╚══██╔══╝██║   ██║██╔══██╗██╔════╝
+███████╗█████╗     ██║   ██║   ██║██████╔╝███████╗
+╚════██║██╔══╝     ██║   ██║   ██║██╔═══╝ ╚════██║
+███████║███████╗   ██║   ╚██████╔╝██║     ███████║
+╚══════╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚══════╝
+*/
+export function setupCanvas(canvasElement: HTMLCanvasElement) {
+  canvas.element = canvasElement;
+  canvas.element.width = window.innerWidth;
+  canvas.element.height = window.innerHeight;
+  canvas.element.style.cursor = selectedTool === TOOLS.Move
+    ? "grab"
+    : "default";
+
+  renderCanvas();
+
+  window.addEventListener("resize", () => {
+    canvas.element.height = window.innerHeight;
+    canvas.element.width = window.innerWidth;
+  });
+
+  canvas.element.addEventListener("mousedown", (e) => {
+    // console.log("start drag", e.clientX, e.clientY);
+    if (selectedTool === TOOLS.Move) {
+      canvas.element.style.cursor = "grabbing";
+      isDragging = true;
+      startDrag.x = e.clientX;
+      startDrag.y = e.clientY;
+    } else if (selectedTool === TOOLS.Select) {
+      if (tree.isColision(e.clientX, e.clientY, 1, 1)) {
+        tree.selected = true;
+        isRelocating = true;
+        startRelocate.x = e.clientX;
+        startRelocate.y = e.clientY;
+      } else {
+        isSelecting = true;
+        startSelect.x = e.clientX;
+        startSelect.y = e.clientY;
+      }
     }
-    mouseMove: 'normal' | 'drag' = 'normal'
-    tool: 'move' = 'move'
+  });
 
-    get center() {
-        return {
-            x: this.#center.x + this.#dragPoint.x,
-            y: this.#center.y + this.#dragPoint.y
-        }
+  canvas.element.addEventListener("mouseup", (e) => {
+    // console.log("end drag", e.clientX, e.clientY);
+    // console.log("dif", e.clientX - startDrag.x, e.clientY - startDrag.y);
+
+    if (selectedTool === TOOLS.Move) {
+      isDragging = false;
+      center.x = center.x + (e.clientX - startDrag.x);
+      center.y = center.y + (e.clientY - startDrag.y);
+      dragPoint.x = 0;
+      dragPoint.y = 0;
+      canvas.element.style.cursor = "grab";
+    } else if (selectedTool === TOOLS.Select) {
+      if (!isRelocating) {
+        isSelecting = false;
+        selectPoint.x = 0;
+        selectPoint.y = 0;
+      } else {
+        isRelocating = false;
+        relocatePoint.x = 0;
+        relocatePoint.y = 0;
+      }
     }
+  });
 
-    ontest = this.registerClick('test', () => alert('test'))
-    constructor() {
-        super()
+  canvas.element.addEventListener("dblclick", (e) => {
+    if (tree.isTextColision(e.clientX, e.clientY)) tree.tryChangeTitle();
+  });
+}
 
-        this.compile(html`
-            <header>header</header>
-            <footer>
-                <button id="ts" @click="${this.ontest}">return</button>
-                <button 
-                id="ts2" 
-                @click="${this.ontest}"
-                >return2</button>
-                <button 
-                @click="${this.ontest}"
-                id="ts3" 
-                >return3</button>
-                <button @click="${this.ontest}">return4</button>
-            </footer>
-        `, this.userInterface)
+export const setupReturnButton = (button: HTMLButtonElement) =>
+  button.addEventListener("click", () => {
+    center.x = canvas.element.width / 2;
+    center.y = canvas.element.height / 2;
+  });
 
-        this.effect(()=> {
-            window.addEventListener('resize', () => {
-                this.canvas.height = window.innerHeight
-                this.canvas.width = window.innerWidth
-                this.renderCanvas()
-            })
+export function setupTools(tools: HTMLElement) {
+  const toolsText: Record<Tool, string> = {
+    [TOOLS.Move]: "Move",
+    [TOOLS.Select]: "Select",
+  };
+  tools.innerHTML = "";
+  Object.entries(toolsText).forEach(([k, v]) => {
+    const button = document.createElement("button");
+    button.setAttribute(
+      "arial-selected",
+      k === selectedTool ? "true" : "false",
+    );
+    button.innerText = v;
+    button.addEventListener("click", () => {
+      const toolsButtons = tools.querySelectorAll("button");
+      toolsButtons.forEach((button) =>
+        button.setAttribute("arial-selected", "false")
+      );
+      button.setAttribute("arial-selected", "true");
+      setTool(k as Tool);
+    });
+    tools.appendChild(button);
+  });
+  // tools.querySelector("button")?.click();
+}
 
-            window.addEventListener('mousemove', (e) => {
-                this.mouse.x = e.clientX
-                this.mouse.y = e.clientY
-                
-                if (this.mouseMove === 'drag') {
-                    this.#dragPoint.x = (e.clientX - this.#startDrag.x)
-                    this.#dragPoint.y = (e.clientY - this.#startDrag.y)
-                    this.renderCanvas()
-                }
-                this.renderCanvas()
-            })
+/*
+███████╗██╗   ██╗███╗   ██╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗███████╗
+██╔════╝██║   ██║████╗  ██║██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║██╔════╝
+█████╗  ██║   ██║██╔██╗ ██║██║        ██║   ██║██║   ██║██╔██╗ ██║███████╗
+██╔══╝  ██║   ██║██║╚██╗██║██║        ██║   ██║██║   ██║██║╚██╗██║╚════██║
+██║     ╚██████╔╝██║ ╚████║╚██████╗   ██║   ██║╚██████╔╝██║ ╚████║███████║
+╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+*/
+function setTool(tool: Tool) {
+  selectedTool = tool;
+  canvas.element.style.cursor = tool === TOOLS.Move
+    ? CURSOR_STYLES.Grab
+    : CURSOR_STYLES.Default;
+  localStorage.setItem("selectedTool", tool);
+}
 
-            window.addEventListener('mousedown', (e) => {
-                console.log('start drag', e.clientX, e.clientY);
-                
-                if (this.tool === 'move') {
-                    this.canvas.style.cursor = 'grabbing'
-                    this.mouseMove = 'drag'
-                    this.#startDrag.x = e.clientX
-                    this.#startDrag.y = e.clientY
-                }
-            })
-            window.addEventListener('mouseup', (e) => {
-                console.log('end drag', e.clientX, e.clientY);
-                console.log('dif', e.clientX - this.#startDrag.x, e.clientY - this.#startDrag.y);
-                
-                if (this.tool === 'move') {
-                    this.mouseMove = 'normal'
-                    this.#center.x = this.#center.x + (e.clientX - this.#startDrag.x)
-                    this.#center.y = this.#center.y + (e.clientY - this.#startDrag.y)
-                    this.#dragPoint.x = 0
-                    this.#dragPoint.y = 0
-                    this.canvas.style.cursor = 'grab'
-                }
-                this.renderCanvas()
-            })
-            this.renderCanvas()
-        }, [])
+function getCenter() {
+  return {
+    x: center.x + dragPoint.x,
+    y: center.y + dragPoint.y,
+  };
+}
+
+function renderCanvas() {
+  canvas.ctx.clearRect(0, 0, canvas.element.width, canvas.element.height);
+  // mouse
+  canvas.ctx.fillStyle = "#ffffff55";
+  canvas.ctx.beginPath();
+  canvas.ctx.arc(mouse.x, mouse.y, 5, 0, Math.PI * 2);
+  canvas.ctx.fill();
+  canvas.ctx.closePath();
+
+  // center
+  canvas.ctx.beginPath();
+  canvas.ctx.strokeStyle = "#ffffff88";
+  canvas.ctx.moveTo(getCenter().x, 0);
+  canvas.ctx.lineTo(getCenter().x, canvas.element.height);
+  canvas.ctx.stroke();
+  canvas.ctx.closePath();
+
+  canvas.ctx.beginPath();
+  canvas.ctx.strokeStyle = "#ffffff88";
+  canvas.ctx.moveTo(0, getCenter().y);
+  canvas.ctx.lineTo(canvas.element.width, getCenter().y);
+  canvas.ctx.stroke();
+  canvas.ctx.closePath();
+
+  tree.render();
+
+  // drag point
+  if (selectedTool === TOOLS.Select) {
+    canvas.ctx.beginPath();
+    canvas.ctx.strokeStyle = "#fff";
+    canvas.ctx.strokeRect(
+      startSelect.x,
+      startSelect.y,
+      selectPoint.x,
+      selectPoint.y,
+    );
+    canvas.ctx.closePath();
+    // detect colision
+    const colision = tree.isColision(
+      selectPoint.x < 0 ? startSelect.x + selectPoint.x : startSelect.x,
+      selectPoint.y < 0 ? startSelect.y + selectPoint.y : startSelect.y,
+      Math.abs(selectPoint.x),
+      Math.abs(selectPoint.y),
+    );
+    if (isSelecting) {
+      if (colision) {
+        tree.selected = true;
+      } else {
+        tree.selected = false;
+      }
     }
+  }
 
-    renderCanvas(): void {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
-        this.ctx.fillStyle = '#fff'
-        this.ctx.beginPath()
-        this.ctx.arc(this.mouse.x, this.mouse.y, 5, 0, Math.PI * 2)
-        this.ctx.fill()
-        this.ctx.closePath()
+  requestAnimationFrame(renderCanvas);
+}
 
-        // center
-        this.ctx.beginPath()
-        this.ctx.strokeStyle = '#ffffff88'
-        this.ctx.moveTo(this.center.x, 0)
-        this.ctx.lineTo(this.center.x, this.canvas.height)
-        this.ctx.stroke()
-        this.ctx.closePath()
-
-        this.ctx.beginPath()
-        this.ctx.strokeStyle = '#ffffff88'
-        this.ctx.moveTo(0, this.center.y)
-        this.ctx.lineTo(this.canvas.width, this.center.y)
-        this.ctx.stroke()
-        this.ctx.closePath()
-
-        // drag point
-        // this.ctx.beginPath()
-        // this.ctx.strokeStyle = '#fff'
-        // this.ctx.strokeRect(this.#startDrag.x, this.#startDrag.y, this.#dragPoint.x, this.#dragPoint.y)
-    }
-
-    render(): void {
-        this.$.appendChild(this.canvas)
-        this.canvas.style.cursor = this.tool === 'move' ? 'grab' : 'default'
-
-        this.canvas.width = window.innerWidth
-        this.canvas.height = window.innerHeight
-        this.#center.x = this.canvas.width / 2
-        this.#center.y = this.canvas.height / 2
-        this.$.appendChild(this.userInterface)
-        
-        // this.canvas.height = this.$.fullscreenElement!.clientHeight!
-
-        this.css`
-            :host {
-                width: 100%;
-                height: 100%;
-                overflow: hidden;
-            }
-
-            canvas {
-                margin: 0;
-                padding: 0;
-                background-color: #1e1e1e;
-            }
-
-            main {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: transparent;
-                padding: 1rem;
-                box-sizing: border-box;
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
-
-                > footer {
-
-                }
-            }
-        `
-    }
+function isColision(
+  obj1: { x: number; y: number; w: number; h: number },
+  obj2: { x: number; y: number; w: number; h: number },
+) {
+  return (
+    obj1.x + obj1.w > obj2.x &&
+    obj1.x < obj2.x + obj2.w &&
+    obj1.y + obj1.h > obj2.y &&
+    obj1.y < obj2.y + obj2.h
+  );
 }

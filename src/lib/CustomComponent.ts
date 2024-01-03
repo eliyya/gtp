@@ -100,12 +100,6 @@ export class CustomComponent extends HTMLElement {
     }
 
     compile(a:string, element: HTMLElement){
-        /*
-        recibe un string con el html y lo compila
-        buscando @click, @change, @input, @submit, @keydown, @keyup, @keypress
-        y los remplaza por los eventos correspondientes
-        wie ejecuta dentro del custom component
-        */
         const eventRegex = new RegExp(`<[^>]+(id="[^"]+")?(@click="[^"]+")(id="[^"]+")?([^>]+)?>`, 'gm')
         const events = a.match(eventRegex) ?? []
         const evn = []
