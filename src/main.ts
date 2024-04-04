@@ -96,9 +96,12 @@ const relocatePoint = {
   x: 0,
   y: 0,
 };
+const selectedNodes = new Set<Enode>();
 let isDragging = false;
 let isSelecting = false;
 let isRelocating = false;
+let isTyping = false;
+let toolsElement: HTMLElement;
 
 const canvas = new (class Canvas {
   element = document.createElement("canvas");
@@ -111,14 +114,18 @@ class Enode {
   static fromLocale() {
     try {
       const parsed = JSON.parse(localStorage.getItem("tree") ?? "");
+      
       return new Enode({
         x: parsed.x,
         y: parsed.y,
         w: parsed.w,
         h: parsed.h,
         title: parsed.title,
+        childs: parsed.childs,
       });
     } catch (error) {
+      console.log(error);
+      
       return new Enode();
     }
   }
@@ -127,12 +134,17 @@ class Enode {
   #y = -50;
   #w = 100;
   #h = 100;
-  selected = false;
-  #title = "Metag";
+  #selected = false;
+  #title = "Meta";
   #textSize = 20;
   #radius = 8;
   #isChangingTitle = false;
-  #timeout = setTimeout(() => {});
+  #childs: Enode[] = [];
+  #parent: Enode | null = null;
+
+  get selected() {
+    return this.#selected;
+  }
 
   get x() {
     return this.#x;
@@ -154,20 +166,33 @@ class Enode {
     return this.#title;
   }
 
+  get childs() {
+    return this.#childs;
+  }
+
+
+  get parent() {
+    return this.#parent;
+  }
+
   set x(x: number) {
     this.#x = x;
     this.save();
   }
 
-  save() {
-    clearTimeout(this.#timeout);
-    this.#timeout = setTimeout(() => {
-      localStorage.setItem("tree", JSON.stringify(this));
-    }, 100);
+  set selected(selected: boolean) {
+    this.#selected = selected;
+    if (selected) {
+      selectedNodes.add(this);
+    } else {
+      selectedNodes.delete(this);
+    }
+    this.save();
   }
 
   set y(y: number) {
     this.#y = y;
+    this.save();
   }
 
   set w(w: number) {
@@ -185,24 +210,72 @@ class Enode {
     this.save();
   }
 
+  set parent(parent: Enode | null) {
+    this.#parent = parent;
+    this.save();
+  }
+
   constructor({
     x,
     y,
     w,
     h,
     title,
+    childs,
+    parent,
   }: {
     x?: number;
     y?: number;
     w?: number;
     h?: number;
     title?: string;
+    childs?: Enode[];
+    parent?: Enode | null;
   } = {}) {
+    
     if (x) this.x = x;
     if (y) this.y = y;
     if (w) this.w = w;
     if (h) this.h = h;
     if (title) this.title = title;
+    if (childs) {
+      for (const child of childs) {
+        this.#childs.push(new Enode({ ...child, parent: this }));
+      }
+    }
+    if (parent) this.#parent = parent;    
+    this.save();
+  }
+
+  save() {
+    if (this.#parent) {
+      this.#parent.save();
+    } else {
+      // clearTimeout(this.#timeout);
+      // this.#timeout = setTimeout(() => {
+        localStorage.setItem("tree", JSON.stringify(this));
+      // }, 100);
+    }
+  }
+
+  getNodeList() {
+    const nodes: Enode[] = [this];
+    for (const child of this.#childs) nodes.push(...child.getNodeList());
+    return nodes;
+  }
+
+  newChild() {
+    this.#childs.push(new Enode({
+      parent: this,
+      x: this.x + this.childs.length * this.w + 20,
+      y: this.y + this.h + 20,
+    }));
+    this.save();
+  }
+
+  setChilds(childs: Enode[]) {
+    this.#childs = childs;
+    this.save();
   }
 
   render() {
@@ -221,6 +294,7 @@ class Enode {
       canvas.ctx.fillStyle = "#fff";
       canvas.ctx.font = `${this.#textSize}px Arial`;
       const textWidth = canvas.ctx.measureText(this.title).width;
+      
       canvas.ctx.fillText(
         this.title,
         this.x + getCenter().x + this.w / 2 - textWidth / 2,
@@ -236,6 +310,21 @@ class Enode {
         this.h + this.#radius,
       );
     }
+    if (this.#parent) {
+      canvas.ctx.strokeStyle = "#fff";
+      canvas.ctx.beginPath();
+      canvas.ctx.moveTo(
+        this.x + getCenter().x + this.w / 2,
+        this.y + getCenter().y,
+      );
+      canvas.ctx.lineTo(
+        this.#parent.x + getCenter().x + this.#parent.w / 2,
+        this.#parent.y + getCenter().y + this.#parent.h,
+      );
+      canvas.ctx.stroke();
+      canvas.ctx.closePath();
+    }
+    this.#childs.forEach((child) => child.render());
   }
 
   isTextColision(x: number, y: number) {
@@ -258,6 +347,7 @@ class Enode {
   }
 
   tryChangeTitle() {
+    isTyping = true;
     this.#isChangingTitle = true;
     let removed = false;
     canvas.ctx.font = `${this.#textSize}px Arial`;
@@ -265,9 +355,8 @@ class Enode {
     const input = document.createElement("input");
     input.value = this.title;
     input.style.position = "absolute";
-    input.style.left = `${
-      this.x + getCenter().x + this.w / 2 - textWidth / 2
-    }px`;
+    input.style.left = `${this.x + getCenter().x + this.w / 2 - textWidth / 2
+      }px`;
     input.style.top = `${this.y + getCenter().y + this.#radius}px`;
     input.style.width = `${textWidth}px`;
     input.style.height = `${this.#textSize}px`;
@@ -287,13 +376,15 @@ class Enode {
       this.title = input.value;
       this.#isChangingTitle = false;
       if (!removed) input.remove();
+      isTyping = false;
     });
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
+      if (e.key === "Enter" || e.key === "Escape") {
         this.title = input.value;
         this.#isChangingTitle = false;
         removed = true;
         input.remove();
+        isTyping = false;
       }
     });
     input.addEventListener("input", () => {
@@ -304,9 +395,8 @@ class Enode {
       if (inputTextWidth > this.w - this.#radius * 2) {
         this.w = inputTextWidth + this.#radius * 2;
       }
-      input.style.left = `${
-        this.x + getCenter().x + this.w / 2 - inputTextWidth / 2
-      }px`;
+      input.style.left = `${this.x + getCenter().x + this.w / 2 - inputTextWidth / 2
+        }px`;
     });
     document.body.appendChild(input);
     input.focus();
@@ -321,16 +411,26 @@ class Enode {
     });
   }
 
-  toJSON() {
+  toJSON(): EnodeJSON {
     return {
       x: this.x,
       y: this.y,
       w: this.w,
       h: this.h,
       title: this.title,
+      childs: this.#childs.map((child) => child.toJSON() as EnodeJSON),
     };
   }
 }
+
+type EnodeJSON = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  title: string;
+  childs: EnodeJSON[];
+};
 
 const tree = Enode.fromLocale();
 
@@ -344,7 +444,7 @@ const center = new (class Center {
       if (!isNaN(pc.x)) this.x = pc.x;
       if (!isNaN(pc.y)) this.y = pc.y;
       localStorage.setItem("center", JSON.stringify(this));
-    } catch {}
+    } catch { }
   }
 
   get x() {
@@ -373,26 +473,6 @@ const center = new (class Center {
   }
 })();
 
-window.addEventListener("mousemove", (e) => {
-  mouse.x = e.clientX;
-  mouse.y = e.clientY;
-
-  if (isDragging) {
-    dragPoint.x = e.clientX - startDrag.x;
-    dragPoint.y = e.clientY - startDrag.y;
-  } else if (isSelecting) {
-    selectPoint.x = e.clientX - startSelect.x;
-    selectPoint.y = e.clientY - startSelect.y;
-  } else if (isRelocating) {
-    relocatePoint.x = e.clientX - startRelocate.x;
-    relocatePoint.y = e.clientY - startRelocate.y;
-    tree.x = tree.x + relocatePoint.x;
-    tree.y = tree.y + relocatePoint.y;
-    startRelocate.x = e.clientX;
-    startRelocate.y = e.clientY;
-  }
-});
-
 /*
 ███████╗███████╗████████╗██╗   ██╗██████╗ ███████╗
 ██╔════╝██╔════╝╚══██╔══╝██║   ██║██╔══██╗██╔════╝
@@ -411,6 +491,32 @@ function setupCanvas(canvasElement: HTMLCanvasElement) {
 
   renderCanvas();
 
+  window.addEventListener("mousemove", (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+
+    if (isDragging) {
+      dragPoint.x = e.clientX - startDrag.x;
+      dragPoint.y = e.clientY - startDrag.y;
+    } else if (isSelecting) {
+      selectPoint.x = e.clientX - startSelect.x;
+      selectPoint.y = e.clientY - startSelect.y;
+    } else if (isRelocating) {
+      relocatePoint.x = e.clientX - startRelocate.x;
+      relocatePoint.y = e.clientY - startRelocate.y;
+      // tree.x = tree.x + relocatePoint.x;
+      // tree.y = tree.y + relocatePoint.y;
+      tree.getNodeList().forEach((node) => {
+        if (node.selected) {
+          node.x = node.x + relocatePoint.x;
+          node.y = node.y + relocatePoint.y;
+        }
+      });
+      startRelocate.x = e.clientX;
+      startRelocate.y = e.clientY;
+    }
+  });
+
   window.addEventListener("resize", () => {
     canvas.element.height = window.innerHeight;
     canvas.element.width = window.innerWidth;
@@ -424,8 +530,16 @@ function setupCanvas(canvasElement: HTMLCanvasElement) {
       startDrag.x = e.clientX;
       startDrag.y = e.clientY;
     } else if (selectedTool === TOOLS.Select) {
-      if (tree.isColision(e.clientX, e.clientY, 1, 1)) {
-        tree.selected = true;
+      const allNodes = tree.getNodeList()
+      const ic = allNodes.some((node) => node.isColision(e.clientX, e.clientY, 1, 1));
+      if (ic) {
+        allNodes.forEach((node) => {
+            if (node.isColision(e.clientX, e.clientY, 1, 1)) {
+              node.selected = true;
+            } else {
+              node.selected = false;
+            }
+          });
         isRelocating = true;
         startRelocate.x = e.clientX;
         startRelocate.y = e.clientY;
@@ -433,10 +547,18 @@ function setupCanvas(canvasElement: HTMLCanvasElement) {
         isSelecting = true;
         startSelect.x = e.clientX;
         startSelect.y = e.clientY;
+        allNodes.forEach((node) => node.selected = false);
       }
     }
   });
 
+
+  // isRelocating = allNodes.some((node) => node.isColision(e.clientX, e.clientY, 1, 1));
+  // 
+  // if (isRelocating) {
+  //   relocatePoint.x = e.clientX - startRelocate.x;
+  //   relocatePoint.y = e.clientY - startRelocate.y;
+  // }
   canvas.element.addEventListener("mouseup", (e) => {
     // console.log("end drag", e.clientX, e.clientY);
     // console.log("dif", e.clientX - startDrag.x, e.clientY - startDrag.y);
@@ -464,6 +586,43 @@ function setupCanvas(canvasElement: HTMLCanvasElement) {
   canvas.element.addEventListener("dblclick", (e) => {
     if (tree.isTextColision(e.clientX, e.clientY)) tree.tryChangeTitle();
   });
+
+  window.addEventListener("keydown", (e) => {
+    if (isTyping) return;
+    if (e.key === "Escape") {
+      tree.getNodeList().forEach((node) => node.selected = false);
+    }
+    if (e.key === "Delete") {
+      selectedNodes.forEach((node) => {
+        if (node === tree) return;
+        const childs = node.childs;
+        if (childs) {
+          childs.forEach((child) => child.parent = node.parent);
+          node.parent!.setChilds([
+            ...node.parent!.childs.filter((child) => child !== node),
+            ...childs,
+          ])
+        } else node.parent!.setChilds(node.parent!.childs.filter((child) => child !== node))
+      });
+      // tree.getNodeList().forEach((node) => node.selected = false);
+    }
+    if (!e.altKey) return;
+    if (e.key === 'm') {
+      setTool(TOOLS.Move);
+    }
+    if (e.key === 's') {
+      setTool(TOOLS.Select);
+    }
+
+    // new node
+    if (e.key === "n") {
+      if (!selectedNodes.size) {
+        tree.newChild();
+      } else if (selectedNodes.size === 1) {
+        selectedNodes.values().next().value.newChild();
+      }
+    }
+  })
 }
 
 const setupReturnButton = (button: HTMLButtonElement) =>
@@ -473,6 +632,7 @@ const setupReturnButton = (button: HTMLButtonElement) =>
   });
 
 function setupTools(tools: HTMLElement) {
+  toolsElement = tools;
   const toolsText: Record<Tool, string> = {
     [TOOLS.Move]: "Move",
     [TOOLS.Select]: "Select",
@@ -512,6 +672,7 @@ function setTool(tool: Tool) {
     ? CURSOR_STYLES.Grab
     : CURSOR_STYLES.Default;
   localStorage.setItem("selectedTool", tool);
+  toolsElement.querySelectorAll("button").forEach((button) => button.innerText.toLowerCase() === tool ? button.setAttribute("arial-selected", "true") : button.setAttribute("arial-selected", "false"));
 }
 
 function getCenter() {
@@ -548,6 +709,7 @@ function renderCanvas() {
   tree.render();
 
   // drag point
+  
   if (selectedTool === TOOLS.Select) {
     canvas.ctx.beginPath();
     canvas.ctx.strokeStyle = "#fff";
@@ -559,19 +721,29 @@ function renderCanvas() {
     );
     canvas.ctx.closePath();
     // detect colision
-    const colision = tree.isColision(
-      selectPoint.x < 0 ? startSelect.x + selectPoint.x : startSelect.x,
-      selectPoint.y < 0 ? startSelect.y + selectPoint.y : startSelect.y,
-      Math.abs(selectPoint.x),
-      Math.abs(selectPoint.y),
-    );
-    if (isSelecting) {
-      if (colision) {
-        tree.selected = true;
-      } else {
-        tree.selected = false;
-      }
-    }
+    // const colision = tree.isColision(
+    //   selectPoint.x < 0 ? startSelect.x + selectPoint.x : startSelect.x,
+    //   selectPoint.y < 0 ? startSelect.y + selectPoint.y : startSelect.y,
+    //   Math.abs(selectPoint.x),
+    //   Math.abs(selectPoint.y),
+    // );
+    const colision = tree.getNodeList().filter((node) => {
+      return isColision(
+        {
+          x: selectPoint.x < 0 ? startSelect.x + selectPoint.x : startSelect.x,
+          y: selectPoint.y < 0 ? startSelect.y + selectPoint.y : startSelect.y,
+          w: Math.abs(selectPoint.x),
+          h: Math.abs(selectPoint.y),
+        },
+        {
+          x: node.x + getCenter().x,
+          y: node.y + getCenter().y,
+          w: node.w,
+          h: node.h,
+        },
+      );
+    })
+    if (isSelecting) colision.forEach((node) => node.selected = true);
   }
 
   requestAnimationFrame(renderCanvas);
